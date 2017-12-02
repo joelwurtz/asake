@@ -1,0 +1,18 @@
+{
+    "name": "asake/asake",
+    "authors": [
+        {
+            "name": "Joel Wurtz",
+            "email": "jwurtz@jolicode.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Asake\\": "src/"
+        }
+    },
+    "require": {
+        "symfony/console": "^4.0",
+        "doctrine/annotations": "^1.5"
+    }
+}
