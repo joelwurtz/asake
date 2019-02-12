@@ -2,6 +2,8 @@
 
 namespace Asake\Console;
 
+use Asake\Annotation\Task;
+use Asake\Context\Context;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -12,9 +14,15 @@ class ReflectionFunctionCommand extends Command
 {
     private $function;
 
-    public function __construct($function)
+    private $startingContext;
+
+    private $task;
+
+    public function __construct(Context $startingContext, \ReflectionFunction $function, Task $task)
     {
-        $this->function = new \ReflectionFunction($function);
+        $this->function = $function;
+        $this->startingContext = $startingContext;
+        $this->task = $task;
 
         parent::__construct(str_replace('\\',':', strtolower($this->function->getName())));
     }
@@ -25,16 +33,20 @@ class ReflectionFunctionCommand extends Command
     protected function configure()
     {
         $parameters = $this->function->getParameters();
+        $this->setDescription($this->task->description);
 
         foreach ($parameters as $parameter) {
+            if ($parameter->getPosition() === 0 && $parameter->hasType() && $parameter->getType()->getName() === Context::class) {
+                continue;
+            }
+
             if (!$parameter->isOptional()) {
                 if ($parameter->hasType() && $parameter->getType()->getName() === 'bool') {
                     $this->addOption(
                         $parameter->getName(),
                         null,
                         InputOption::VALUE_NONE,
-                        '',
-                        true
+                        ''
                     );
                 } else {
                     $this->addArgument(
@@ -51,8 +63,13 @@ class ReflectionFunctionCommand extends Command
                         $parameter->getName(),
                         null,
                         InputOption::VALUE_NONE,
-                        '',
-                        $parameter->getDefaultValue()
+                        ''
+                    );
+                } elseif ($parameter->isVariadic()) {
+                    $this->addArgument(
+                        $parameter->getName(),
+                        InputArgument::IS_ARRAY | InputArgument::OPTIONAL,
+                        ''
                     );
                 } else {
                     $this->addOption(
@@ -76,13 +93,21 @@ class ReflectionFunctionCommand extends Command
         $parameters = $this->function->getParameters();
 
         foreach ($parameters as $parameter) {
+            if ($parameter->getPosition() === 0 && $parameter->hasType() && $parameter->getType()->getName() === Context::class) {
+                $values[] = $this->startingContext;
+
+                continue;
+            }
+
             if (!$parameter->isOptional() && (!$parameter->hasType() || $parameter->getType()->getName() !== 'bool')) {
                 $values[] = $input->getArgument($parameter->getName());
+            } elseif ($parameter->isVariadic()) {
+                $values = array_merge($values, $input->getArgument($parameter->getName()));
             } else {
                 $values[] = $input->getOption($parameter->getName());
             }
         }
 
-        return $this->function->invokeArgs($values);
+        return $this->function->invoke(...$values);
     }
 }
